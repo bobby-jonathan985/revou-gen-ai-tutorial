@@ -4,6 +4,7 @@ from langchain_core.messages import AIMessageChunk, HumanMessage, AIMessage, Sys
 import agents.graph as gr
 import agents.DBQNA as DBQNA
 import agents.RAG as RAG
+from agents.FAQ.builder import build_graph
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langgraph.graph import MessagesState, StateGraph, START, END
@@ -65,12 +66,23 @@ def callDBQNA(state: SupervisorState) -> Command[Literal['supervisor']]:
         update={"messages": response['messages'][-1]}
     )
 
+def callFAQ(state: SupervisorState) -> Command[Literal['supervisor']]:
+    prompt = state['user_question']
+    faq_graph = build_graph().compile()
+
+    response = faq_graph.invoke({"messages":HumanMessage(content=prompt)})
+    return Command(
+        goto=END,
+        update={"messages": response['messages'][-1]}
+    )
+
 # memory = InMemorySaver()
 supervisor_agent = (
     StateGraph(SupervisorState)
     .add_node(supervisor)
     .add_node("RAG", callRAG)
     .add_node("DBQNA", callDBQNA)
+    .add_node('FAQ', callFAQ)
     .add_edge(START, "supervisor")
     .compile(name= "supervisor")
 )
